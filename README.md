@@ -92,6 +92,10 @@ eventdata.destinationIp
 </table>
 
 
+Addition: This script will also fetch web traffic logs, Get SRCIP and then Obtain Information from MISP about that SRCIP.
+It will report IOCs back to Wazuh if there'll be any IOC found in SRCIP.
+
+
 
 ## Wazuh Manager - Custom Integration
 
