@@ -1,4 +1,4 @@
-**WAZUH - MISP INTEGRATION FOR THREAT INTEL**
+**WAZUH - MISP INTEGRATION FOR THREAT INTEL with Web Detections through SRC-IP as a value**
 
 ## Intro
 
@@ -90,6 +90,10 @@ eventdata.destinationIp
    </td>
   </tr>
 </table>
+
+
+Addition: This script will also fetch web traffic logs, Get SRCIP and then Obtain Information from MISP about that SRCIP.
+It will report IOCs back to Wazuh if there'll be any IOC found in SRCIP.
 
 
 
@@ -258,6 +262,37 @@ if event_source == 'windows':
             alert_output["misp"]["value"] = misp_api_response["response"]["Attribute"][0]["value"]
             alert_output["misp"]["type"] = misp_api_response["response"]["Attribute"][0]["type"]
             send_event(alert_output, alert["agent"])
+elif event_source == 'web':
+    try:
+        src_ip = alert["data"]["srcip"]
+        if ipaddress.ip_address(src_ip).is_global:
+            wazuh_event_param = src_ip
+            misp_search_value = "value:"f"{wazuh_event_param}"
+            misp_search_url = ''.join([misp_base_url, misp_search_value])
+            try:
+                misp_api_response = requests.get(misp_search_url, headers=misp_apicall_headers, verify=False)
+            except ConnectionError:
+                alert_output["misp"] = {}
+                alert_output["integration"] = "misp"
+                alert_output["misp"]["error"] = 'Connection Error to MISP API'
+                send_event(alert_output, alert["agent"])
+            else:
+                misp_api_response = misp_api_response.json()
+    # Check if response includes Attributes (IoCs)
+                print(misp_api_response) 
+                if (misp_api_response["response"]["Attribute"]):
+                    print("error handle")
+            # Generate Alert Output from MISP Response
+                    alert_output["misp"] = {}
+                    alert_output["misp"]["event_id"] = misp_api_response["response"]["Attribute"][0]["event_id"]
+                    alert_output["misp"]["category"] = misp_api_response["response"]["Attribute"][0]["category"]
+                    alert_output["misp"]["value"] = misp_api_response["response"]["Attribute"][0]["value"]
+                    alert_output["misp"]["type"] = misp_api_response["response"]["Attribute"][0]["type"]
+                    send_event(alert_output, alert["agent"])
+        else:
+            sys.exit()
+    except IndexError:
+        sys.exit()
 elif event_source == 'linux':
     if event_type == 'sysmon_event3' and alert["data"]["eventdata"]["destinationIsIpv6"] == 'false':
         try:
@@ -336,7 +371,7 @@ Wazuh manager config for this integration:
 ```
 <integration>
  <name>custom-misp</name>  
- <group>sysmon_event1,sysmon_event3,sysmon_event6,sysmon_event7,sysmon_event_15,sysmon_event_22,syscheck</group>
+ <group>sysmon_event1,sysmon_event3,sysmon_event6,sysmon_event7,sysmon_event_15,sysmon_event_22,syscheck,web</group>
  <alert_format>json</alert_format>
 </integration>
 ```
